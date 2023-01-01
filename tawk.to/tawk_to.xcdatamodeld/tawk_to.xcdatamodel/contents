@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="21512" systemVersion="21G83" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
-    <entity name="Details" representedClassName=".Details" syncable="YES" codeGenerationType="category">
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="21513" systemVersion="22C65" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+    <entity name="Details" representedClassName=".Details" syncable="YES" codeGenerationType="class">
         <attribute name="avatar_url" optional="YES" attributeType="String"/>
         <attribute name="bio" optional="YES" attributeType="String"/>
         <attribute name="blog" optional="YES" attributeType="String"/>
@@ -17,12 +17,10 @@
         <attribute name="hireable" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="html_url" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="image" optional="YES" attributeType="Binary"/>
         <attribute name="location" optional="YES" attributeType="String"/>
         <attribute name="login" optional="YES" attributeType="String"/>
         <attribute name="name" optional="YES" attributeType="String"/>
         <attribute name="node_id" optional="YES" attributeType="String"/>
-        <attribute name="notes" optional="YES" attributeType="String"/>
         <attribute name="organizations_url" optional="YES" attributeType="String"/>
         <attribute name="public_gists" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="public_repos" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
@@ -41,7 +39,7 @@
             </uniquenessConstraint>
         </uniquenessConstraints>
     </entity>
-    <entity name="Users" representedClassName=".Users" syncable="YES" codeGenerationType="category">
+    <entity name="Users" representedClassName=".Users" syncable="YES" codeGenerationType="class">
         <attribute name="avatar_url" optional="YES" attributeType="String"/>
         <attribute name="events_url" optional="YES" attributeType="String"/>
         <attribute name="followers_url" optional="YES" attributeType="String"/>
@@ -50,12 +48,13 @@
         <attribute name="gravatar_id" optional="YES" attributeType="String"/>
         <attribute name="html_url" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="image" optional="YES" attributeType="Binary"/>
         <attribute name="login" optional="YES" attributeType="String"/>
         <attribute name="node_id" optional="YES" attributeType="String"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
         <attribute name="organizations_url" optional="YES" attributeType="String"/>
         <attribute name="received_events_url" optional="YES" attributeType="String"/>
         <attribute name="repos_url" optional="YES" attributeType="String"/>
+        <attribute name="seen" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
         <attribute name="site_admin" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="starred_url" optional="YES" attributeType="String"/>
         <attribute name="subscriptions_url" optional="YES" attributeType="String"/>

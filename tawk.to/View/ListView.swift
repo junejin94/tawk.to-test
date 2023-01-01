@@ -1,5 +1,5 @@
 //
-//  ViewController.swift
+//  ListView.swift
 //  tawk.to
 //
 //  Created by Phua June Jin on 09/12/2022.
@@ -11,11 +11,10 @@ import Network
 import UIKit
 import SwiftUI
 
-class ListView: UIViewController {
-    var viewModel: UsersViewModel?
-
+@MainActor class ListView: UIViewController, SkeletonDisplayable {
+    private var viewModel: ListViewModel
     private var indicator = UILabel()
-
+    private var showSkeleton: Bool = true
     private var triggerLoad: Bool = false
     private var hasConnection: Bool = false
     private var disposables = Set<AnyCancellable>()
@@ -24,42 +23,63 @@ class ListView: UIViewController {
     private var constraintBannerHeight: NSLayoutConstraint!
     private var searchBar: UISearchController = UISearchController()
 
+    init(viewModel: ListViewModel) {
+        self.viewModel = viewModel
+
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        self.viewModel = ListViewModel()
+
+        super.init(coder: coder)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
         view.backgroundColor = .systemBackground
 
-        viewModel = UsersViewModel()
-
+        initData()
         initSearchBar()
         initTableView()
         initIndicator()
         initCancellable()
         initActivityIndicator()
-
-        viewModel?.loadData()
     }
 
-    func initActivityIndicator() {
-        activityIndicator.center = view.center
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+
+        if showSkeleton { showSkeleton() }
+    }
+
+    private func initData() {
+        loadData()
+    }
+
+    private func initActivityIndicator() {
+        activityIndicator.center = tableView.center
+        activityIndicator.frame = view.frame
+        activityIndicator.hidesWhenStopped = true
 
         view.addSubview(activityIndicator)
-
-        activityIndicator.hidesWhenStopped = true
-        activityIndicator.startAnimating()
     }
 
-    func initTableView() {
+    private func initTableView() {
         tableView.layoutMargins = .init(top: 100, left: 100, bottom: 100, right: 100)
         tableView.delegate = self
         tableView.dataSource = self
         tableView.separatorColor = .clear
+        tableView.isScrollEnabled = false
+        tableView.isUserInteractionEnabled = false
         tableView.showsVerticalScrollIndicator = false
         tableView.showsHorizontalScrollIndicator = false
         tableView.registerCell(cellClass: CustomCellNormal.self)
         tableView.registerCell(cellClass: CustomCellNote.self)
         tableView.registerCell(cellClass: CustomCellInverted.self)
-        
+        tableView.registerCell(cellClass: CustomCellShimmer.self)
+
         view.addSubview(tableView)
 
         tableView.translatesAutoresizingMaskIntoConstraints = false
@@ -69,11 +89,12 @@ class ListView: UIViewController {
         tableView.bottomAnchor.constraint(equalTo:view.safeAreaLayoutGuide.bottomAnchor).isActive = true
     }
 
-    func initSearchBar() {
+    private func initSearchBar() {
         searchBar.delegate = self
         searchBar.searchResultsUpdater = self
         searchBar.searchBar.placeholder = "Search..."
         searchBar.searchBar.autocapitalizationType = .none
+        searchBar.searchBar.isUserInteractionEnabled = false
         searchBar.obscuresBackgroundDuringPresentation = false
         searchBar.hidesNavigationBarDuringPresentation = false
 
@@ -81,7 +102,7 @@ class ListView: UIViewController {
         navigationItem.hidesSearchBarWhenScrolling = false
     }
 
-    func initIndicator() {
+    private func initIndicator() {
         indicator.textColor = .white
         indicator.textAlignment = .center
         indicator.font = UIFont.systemFont(ofSize: 12)
@@ -99,36 +120,59 @@ class ListView: UIViewController {
         }
     }
 
-    func initCancellable() {
-        // The reason didSet was used is because Observable triggers on willSet which the data has not been set yet
-        viewModel?.didSetList.sink { _ in
-            DispatchQueue.main.async { [weak self] in
-                self?.activityIndicator.stopAnimating()
-                self?.tableView.reloadData()
-                self?.triggerLoad = false
-            }
+    private func initCancellable() {
+        /// The reason didSet was used is because Observable triggers on willSet which the data has not been set yet
+        viewModel.didSetList.sink { _ in
+            self.triggerLoad = false
+
+            self.activityIndicator.stopAnimating()
+            self.tableView.reloadData()
+            self.enableInteraction()
         }.store(in: &disposables)
 
-        MonitorConnection.shared.$hasConnection.sink { hasConnection in
-            DispatchQueue.main.async { [weak self] in
-                self?.hasConnection = hasConnection
-                self?.indicator.text = hasConnection ? "Connection is back" : "No internet connection"
-                self?.indicator.backgroundColor = hasConnection ? .green : .red
+        MonitorConnection.shared.$hasConnection.dropFirst().sink { hasConnection in
+            Task {
+                self.hasConnection = hasConnection
+                self.indicator.text = hasConnection ? "Connection is back" : "No internet connection"
+                self.indicator.backgroundColor = hasConnection ? .green : .red
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + (hasConnection ? 2 : 0), execute: {
-                    UIView.animate(withDuration: 0.5, animations: {
-                        self?.constraintBannerHeight.constant = hasConnection ? 0 : 20
-                        self?.navigationController?.navigationBar.superview?.layoutIfNeeded()
-                    })
+                try? await Task.sleep(seconds: hasConnection ? 2 : 0)
+
+                if hasConnection { self.retryIfNecessary() }
+
+                UIView.animate(withDuration: 0.5, animations: {
+                    self.constraintBannerHeight.constant = hasConnection ? 0 : 20
+                    self.navigationController?.navigationBar.superview?.layoutIfNeeded()
                 })
             }
         }.store(in: &disposables)
+    }
+
+    private func loadData() {
+        Task.detached { [weak self] in await self?.viewModel.loadData() }
+    }
+
+    private func loadMore() {
+        Task.detached { [weak self] in await self?.viewModel.loadMore() }
+    }
+
+    private func retryIfNecessary() {
+        Task { await viewModel.retryIfNecessary() }
+    }
+
+    private func enableInteraction() {
+        hideSkeleton()
+
+        showSkeleton = false
+        tableView.isScrollEnabled = true
+        tableView.isUserInteractionEnabled = true
+        searchBar.searchBar.isUserInteractionEnabled = true
     }
 }
 
 extension ListView: UITableViewDelegate, UITableViewDataSource {
     func numberOfSections(in tableView: UITableView) -> Int {
-        return viewModel?.userList.count ?? 0
+        return viewModel.allList.count == 0 ? 10 : viewModel.userList.count
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -148,50 +192,44 @@ extension ListView: UITableViewDelegate, UITableViewDataSource {
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = viewModel!.cellForTableView(tableView: tableView, atIndexPath: indexPath)
-        cell.selectionStyle = .none
-
-        return cell
+        return viewModel.cellForTableView(tableView: tableView, atIndexPath: indexPath)
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        if let data = viewModel?.userList[indexPath.section] {
-            var title: String? = ""
+        if let data = viewModel.getUser(indexPath: indexPath) {
+            let detailsViewModel = DetailsViewModel(user: data)
 
-            if let detail = data.detail {
-                title = detail.name
-            } else {
-                if !hasConnection {
-                    let msg = UIAlertController(title: "", message: "There's no internet connection.\nPlease try again later.", preferredStyle: .alert)
-                    msg.addAction(UIAlertAction(title: "OK", style: .default))
-
-                    self.present(msg, animated: true)
-                    return
-                }
-            }
-
-            data.didSetNotes.sink { _ in
-                DispatchQueue.main.async { tableView.reloadData() }
+            Publishers.MergeMany(detailsViewModel.didSetDetail, detailsViewModel.didSetSeen).sink { _ in
+                Task { tableView.reloadData() }
             }.store(in: &disposables)
 
-            let view = UIHostingController(rootView: DetailsView().environmentObject(data))
-            view.title = title
+            detailsViewModel.didSetNotes.sink { notes in
+                data.notes = notes
+                Task { tableView.reloadData() }
+            }.store(in: &disposables)
+
+            let view = UIHostingController(rootView: DetailsView().environmentObject(detailsViewModel))
+
+            if let detail = data.detail { view.title = detail.name }
 
             self.navigationController?.pushViewController(view, animated: true)
         }
     }
 
     func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-        if !triggerLoad, hasConnection, indexPath.section + 1 == viewModel?.allList.count {
-            triggerLoad = true
-            self.activityIndicator.startAnimating()
-            viewModel?.loadMore()
+        Task {
+            if !triggerLoad, indexPath.section + 1 == viewModel.allList.count {
+                triggerLoad = true
+
+                activityIndicator.startAnimating()
+                loadMore()
+            }
         }
     }
 }
 
 extension ListView: UISearchResultsUpdating, UISearchControllerDelegate {
     func updateSearchResults(for searchController: UISearchController) {
-        viewModel?.filterList(text: searchController.searchBar.text ?? "")
+        Task { await viewModel.filterList(text: searchController.searchBar.text ?? "") }
     }
 }

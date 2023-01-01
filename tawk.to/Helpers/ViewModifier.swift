@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-// To display short toast messages
+// MARK: - Toast
 struct Toast: ViewModifier {
     static let short: TimeInterval = 2
     static let long: TimeInterval = 3.5
@@ -37,7 +37,8 @@ struct Toast: ViewModifier {
                 .background(config.backgroundColor)
                 .cornerRadius(8)
                 .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + config.duration) {
+                    Task {
+                        try? await Task.sleep(seconds: config.duration)
                         isShowing = false
                     }
                 }
@@ -71,16 +72,22 @@ struct Toast: ViewModifier {
 }
 
 extension View {
+    /**
+     Display a short toast message
+
+     - Parameters:
+        - message: The message
+        - isShowing: Binding bool for when to display
+        - config: Configuration for the toast
+
+     - Returns: Toast message view.
+     */
     func toast(message: String, isShowing: Binding<Bool>, config: Toast.Config) -> some View {
         self.modifier(Toast(message: message, config: config, isShowing: isShowing))
-  }
-
-  func toast(message: String, isShowing: Binding<Bool>, duration: TimeInterval) -> some View {
-      self.modifier(Toast(message: message, config: .init(duration: duration), isShowing: isShowing))
     }
 }
 
-// Since SwiftUI doesn't yet support ViewDidLoad, need to customise
+// MARK: - ViewDidLoad
 struct ViewDidLoadModifier: ViewModifier {
     @State private var didLoad = false
     private let action: (() -> Void)?
@@ -100,7 +107,98 @@ struct ViewDidLoadModifier: ViewModifier {
 }
 
 extension View {
+    /**
+     Modifier to emulate UIKit's viewDidLoad
+
+     SwiftUI doesn't have function that is similiar to UIKit's viewDidLoad, so a customised modifier is necessary to emulate it
+
+     - Parameters:
+        - perform: The action to peform once received
+
+     - Returns: View.
+     */
     func onLoad(perform action: (() -> Void)? = nil) -> some View {
         modifier(ViewDidLoadModifier(perform: action))
+    }
+}
+
+// MARK: - Shimmering
+public struct ShimmerConfiguration {
+    public let gradient: Gradient
+    public let startPoint: (start: UnitPoint, end: UnitPoint)
+    public let endPoint: (start: UnitPoint, end: UnitPoint)
+    public let duration: TimeInterval
+    public let opacity: Double
+
+    public static let `default` = ShimmerConfiguration(
+        gradient: Gradient(colors: [Color(CustomColor.Skeleton.background), Color(CustomColor.Skeleton.highlight), Color(CustomColor.Skeleton.background)]),
+        startPoint: (start: UnitPoint(x: -1, y: 0.5), end: .leading),
+        endPoint: (start: .trailing, end: UnitPoint(x: 2, y: 0.5)),
+        duration: 2,
+        opacity: 1
+      )
+}
+
+struct ShimmeringView<Content: View>: View {
+    private let content: () -> Content
+    private let configuration: ShimmerConfiguration
+
+    @State private var startPoint: UnitPoint
+    @State private var endPoint: UnitPoint
+    @Binding private var isPresented: Bool
+
+    init(configuration: ShimmerConfiguration, isPresented: Binding<Bool>, content: @escaping () -> Content) {
+        self.configuration = configuration
+        self.content = content
+
+        _isPresented = isPresented
+        _startPoint = .init(wrappedValue: configuration.startPoint.start)
+        _endPoint = .init(wrappedValue: configuration.startPoint.end)
+    }
+
+    var body: some View {
+        ZStack {
+            content()
+
+            if isPresented {
+                LinearGradient(
+                    gradient: configuration.gradient,
+                    startPoint: startPoint,
+                    endPoint: endPoint
+                )
+                .opacity(configuration.opacity)
+                .onAppear {
+                    withAnimation(Animation.linear(duration: configuration.duration).repeatForever(autoreverses: false)) {
+                        startPoint = configuration.endPoint.start
+                        endPoint = configuration.endPoint.end
+                    }
+                }
+            }
+        }
+        .edgesIgnoringSafeArea(.all)
+    }
+}
+
+public struct ShimmerModifier: ViewModifier {
+    let configuration: ShimmerConfiguration
+    let isPresented: Binding<Bool>
+
+    public func body(content: Content) -> some View {
+        ShimmeringView(configuration: configuration, isPresented: isPresented) { content }
+    }
+}
+
+public extension View {
+    /**
+     Add shimmering effect to SwiftUI's View
+
+     - Parameters:
+        - configuration: The configuration for the shimmering effect
+        - isPresented: Binding bool status on whether to display the shimmering effect
+
+     - Returns: View.
+     */
+    func shimmer(configuration: ShimmerConfiguration = .default, isPresented: Binding<Bool>) -> some View {
+        modifier(ShimmerModifier(configuration: configuration, isPresented: isPresented))
     }
 }

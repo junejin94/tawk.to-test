@@ -8,53 +8,42 @@
 import Foundation
 import CoreData
 
-class Details: NSManagedObject, Decodable {
-    enum CodingKeys: CodingKey {
-        case login
-        case id
-        case node_id
-        case avatar_url
-        case gravatar_id
-        case url
-        case html_url
-        case followers_url
-        case following_url
-        case gists_url
-        case starred_url
-        case subscriptions_url
-        case organizations_url
-        case repos_url
-        case events_url
-        case received_events_url
-        case type
-        case site_admin
-        case name
-        case company
-        case blog
-        case location
-        case email
-        case hireable
-        case bio
-        case twitter_username
-        case public_repos
-        case public_gists
-        case followers
-        case following
-        case created_at
-        case updated_at
-    }
+/// To decode JSON using Codable protocol and act as a temporary data storage
+struct DetailsCodable: Codable {
+    var login: String
+    var id: Int64
+    var node_id: String
+    var avatar_url: String
+    var gravatar_id: String
+    var url: String
+    var html_url: String
+    var followers_url: String
+    var following_url: String
+    var gists_url: String
+    var starred_url: String
+    var subscriptions_url: String
+    var organizations_url: String
+    var repos_url: String
+    var events_url: String
+    var received_events_url: String
+    var type: String
+    var site_admin: Bool
+    var name: String?
+    var company: String?
+    var blog: String?
+    var location: String?
+    var email: String?
+    var hireable: Bool?
+    var bio: String?
+    var twitter_username: String?
+    var public_repos: Int64?
+    var public_gists: Int64?
+    var followers: Int64?
+    var following: Int64?
+    var created_at: String
+    var updated_at: String
 
-    required convenience init(from decoder: Decoder) throws {
-        guard let context = decoder.userInfo[CodingUserInfoKey.managedObjectContext] as? NSManagedObjectContext else {
-            throw DecoderConfigurationError.missingManagedObjectContext
-        }
-
-        self.init(context: context)
-
-        guard NSEntityDescription.entity(forEntityName: "Users", in: context) != nil else {
-            throw DatabaseError.invalidEntity
-        }
-
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         self.login = try container.decode(String.self, forKey: .login)
@@ -75,7 +64,7 @@ class Details: NSManagedObject, Decodable {
         self.received_events_url = try container.decode(String.self, forKey: .received_events_url)
         self.type = try container.decode(String.self, forKey: .type)
         self.site_admin = try container.decode(Bool.self, forKey: .site_admin)
-        self.name = try container.decode(String.self, forKey: .name)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
         self.company = try container.decodeIfPresent(String.self, forKey: .company) ?? ""
         self.blog = try container.decodeIfPresent(String.self, forKey: .blog) ?? ""
         self.location = try container.decodeIfPresent(String.self, forKey: .location) ?? ""
@@ -89,25 +78,5 @@ class Details: NSManagedObject, Decodable {
         self.following = try container.decodeIfPresent(Int64.self, forKey: .following) ?? 0
         self.created_at = try container.decode(String.self, forKey: .created_at)
         self.updated_at = try container.decode(String.self, forKey: .updated_at)
-
-        var image = Data()
-
-        let semaphore = DispatchSemaphore(value: 0)
-
-        Services.shared.fetchData(self.avatar_url!) { result in
-            switch result {
-            case .success(let data):
-                image = data
-            case .failure(_):
-                image = Data()
-            }
-
-            semaphore.signal()
-        }
-
-        semaphore.wait()
-
-        self.image = image
-        self.notes = ""
     }
 }

@@ -9,8 +9,10 @@ import Foundation
 import UIKit
 import Combine
 
-// Custom base cell for UITableView
+/// Base custom cell for UITableView.
 class CustomCellBase: UITableViewCell {
+    var seen: Bool = false
+
     var profileImageView: UIImageView = {
         let img = UIImageView()
         img.translatesAutoresizingMaskIntoConstraints = false
@@ -20,6 +22,7 @@ class CustomCellBase: UITableViewCell {
 
     var nameLabel: UILabel = {
         let label = UILabel()
+        label.text = " "
         label.font = UIFont.boldSystemFont(ofSize: 18)
         label.translatesAutoresizingMaskIntoConstraints = false
 
@@ -28,8 +31,9 @@ class CustomCellBase: UITableViewCell {
 
     var detailLabel: UILabel = {
         let label = UILabel()
-        label.font = label.font.withSize(12)
+        label.text = " "
         label.textColor = .secondaryLabel
+        label.font = label.font.withSize(12)
         label.lineBreakMode = .byTruncatingTail
         label.translatesAutoresizingMaskIntoConstraints = false
 
@@ -93,11 +97,12 @@ class CustomCellBase: UITableViewCell {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        
+
         self.layer.borderWidth = 3
         self.layer.cornerRadius = 16
         self.layer.borderColor = UIColor.secondaryLabel.cgColor
-        
+        self.contentView.alpha = seen ? 0.5 : 1
+
         self.profileImageView.cropCircle()
     }
 
@@ -106,14 +111,11 @@ class CustomCellBase: UITableViewCell {
     }
 }
 
+/// Normal custom cell for UITableView.
 class CustomCellNormal: CustomCellBase, Configurable {
     func configure(data: User) {
-        if let img = data.image {
-            self.profileImageView.image = UIImage(data: img)
-        } else {
-            self.profileImageView.image = UIImage()
-        }
-
+        self.seen = data.seen
+        self.profileImageView.image = data.image
         self.nameLabel.text = data.login ?? ""
 
         if let detail = data.detail {
@@ -126,23 +128,63 @@ class CustomCellNormal: CustomCellBase, Configurable {
     }
 }
 
-class CustomCellNote: CustomCellNormal {
-    override func configure(data: User) {
-        super.configure(data: data)
+/// Custom cell with notes icon for UITableView.
+class CustomCellNote: CustomCellBase, Configurable {
+    func configure(data: User) {
+        self.seen = data.seen
+        self.profileImageView.image = data.image
+        self.nameLabel.text = data.login ?? ""
 
-        if let detail = data.detail, let note = detail.notes, !note.isEmpty {
+        if let detail = data.detail {
+            self.detailLabel.text = detail.bio ?? ""
+        } else {
+            self.detailLabel.text = ""
+        }
+
+        if let note = data.notes, !note.isEmpty {
             self.showNote(status: true)
+        } else {
+            self.showNote(status: false)
         }
     }
 }
 
-class CustomCellInverted: CustomCellNormal {
-    override func configure(data: User) {
-        super.configure(data: data)
-
-        if let detail = data.detail, let note = detail.notes, !note.isEmpty {
-            self.showNote(status: true)
+/// Custom cell with image inverted for UITableView.
+class CustomCellInverted: CustomCellBase, Configurable {
+    func configure(data: User) {
+        /// Check whether there's inverted image
+        if let inverted = data.inverted {
+            self.profileImageView.image = inverted
+        } else {
+            /// Invert the image and store it in the object
+            data.inverted = data.image.invertColor()
+            /// The original image is used as fallback in case the inversion failed
+            self.profileImageView.image = data.inverted ?? data.image
         }
+
+        self.seen = data.seen
+        self.nameLabel.text = data.login ?? ""
+
+        if let detail = data.detail {
+            self.detailLabel.text = detail.bio ?? ""
+        } else {
+            self.detailLabel.text = ""
+        }
+
+        if let note = data.notes, !note.isEmpty {
+            self.showNote(status: true)
+        } else {
+            self.showNote(status: false)
+        }
+    }
+}
+
+/// Custom cell for skeleton loading
+class CustomCellShimmer: CustomCellBase, Configurable {
+    func configure(data: Void) {
+        self.nameLabel.backgroundColor = CustomColor.Skeleton.background
+        self.detailLabel.backgroundColor = CustomColor.Skeleton.background
+        self.profileImageView.backgroundColor = CustomColor.Skeleton.background
     }
 }
 
@@ -158,6 +200,7 @@ extension ReusableCell {
 
 extension UITableViewCell: ReusableCell {}
 
+/// Convenience method to dequeue and register cell
 extension UITableView {
     func registerCell<T: UITableViewCell>(cellClass: T.Type) {
         self.register(T.self, forCellReuseIdentifier: T.reuseIdentifier)

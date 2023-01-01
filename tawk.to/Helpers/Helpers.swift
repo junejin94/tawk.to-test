@@ -6,12 +6,18 @@
 //
 
 import Foundation
-import UIKit
 import Network
+import UIKit
 
+// MARK: - Class
+/**
+ Singleton for monitoring network status of device.
 
-// NWPathMonitor doesn't work correctly for Simulators, the alternative is to ping a server constantly
-class MonitorConnection {
+ To monitor the network status, one just need to listen to the "hasConnection" var, and perform dropFirst() because the default status will be pushed first.
+
+ - Note: NWPathMonitor **DOES NOT** work correctly for Simulators, it gives unreliable results.
+ */
+@MainActor class MonitorConnection {
     @Published var hasConnection: Bool = true
 
     private let connectionQueue = DispatchQueue(label: "Connection")
@@ -26,7 +32,7 @@ class MonitorConnection {
         monitor.pathUpdateHandler = { [unowned self] path in
             if path.status != self.previousState {
                 self.previousState = path.status
-                hasConnection = path.status == .satisfied
+                Task { hasConnection = path.status == .satisfied }
             }
         }
 
@@ -34,7 +40,12 @@ class MonitorConnection {
     }
 }
 
+// MARK: - Function
+/**
+ Empty view.
 
+ - Returns: An empty view.
+ */
 func emptyView() -> UIView {
     let view = UIView()
     view.backgroundColor = .clear
@@ -42,55 +53,115 @@ func emptyView() -> UIView {
     return view
 }
 
-// Invert color of a UIImage
-extension UIImage {
-    func invertColor() -> UIImage? {
-        guard let cgImage = self.cgImage else { return nil }
-        guard let filter = CIFilter(name: "CIColorInvert") else { return nil }
+/**
+ Fetch image for a single user.
 
-        filter.setDefaults()
-        filter.setValue(CoreImage.CIImage(cgImage: cgImage), forKey: kCIInputImageKey)
+ The flow of operation for fetching the image:
+ 1. Attempt to load from disk.
+ 2. Attempt to load from web.
+ 3. Attempt to load from web with exponential backoff.
 
-        let context = CIContext(options: nil)
+ - Parameters:
+    - id: A user ID
+    - url: The url to fetch the image from
+    - update: Flag to download from web instead of try to get local image
 
-        guard let outputImage = filter.outputImage else { return nil }
-        guard let outputImageCopy = context.createCGImage(outputImage, from: outputImage.extent) else { return nil }
+ - Returns: An image of the user.
+ */
+func getImage(id: Int64, url: String?, update: Bool) async throws -> UIImage {
+    guard let avatarURL = url else { throw UserError.missingAvatarURL }
 
-        return UIImage(cgImage: outputImageCopy)
-    }
-}
+    let fileURL = URL.documents.appendingPathComponent(String(id) + ".png")
+    let filePath = fileURL.path
 
-// To crop an image to a circle
-extension UIImageView {
-    func cropCircle() {
-        layer.borderWidth = 3
-        layer.masksToBounds = false
-        layer.borderColor = UIColor.secondaryLabel.cgColor
-        layer.cornerRadius = self.frame.height / 2
-        clipsToBounds = true
-    }
-}
-
-enum DatabaseError: LocalizedError {
-    case invalidEntity
-    case unableToWrite
-    case unableToRead
-    case emptyID
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidEntity: return "Invalid Entity"
-        case .unableToWrite: return "Unable to write to database"
-        case .unableToRead: return "Unable to read the database"
-        case .emptyID: return "Empty ID"
+    if !update && FileManager.default.fileExists(atPath: filePath) {
+        if let image = UIImage(contentsOfFile: filePath) {
+            return image
+        } else {
+            return try await fetchImageWeb(url: avatarURL, fileURL: fileURL)
         }
     }
+
+    return try await fetchImageWeb(url: avatarURL, fileURL: fileURL)
 }
 
-enum DecoderConfigurationError: Error {
-    case missingManagedObjectContext
+/**
+ Calculate a time interval exponentially with given parameters.
+
+ By using the formula, t * (1 + m)ⁿ where,
+ - t = time
+ - m = multiplier
+ - n = attempt
+
+ we are able to exponentially increase the number based on the attempt.
+
+ - Precondition: `count` must start from 1
+ - Parameters:
+    - count: The n attempt
+    - time: The initial time for delay in seconds
+    - multiplier: The exponential multiplier
+
+ - Returns: Time interval in nanoseconds.
+ */
+func exponentialBackoff(count: Int, time: TimeInterval, multiplier: Double) -> UInt64 {
+    return UInt64(count == 1 ? time * 1_000_000_000 : time * 1_000_000_000 * pow(1 + multiplier, Double(count - 1)))
 }
 
-extension CodingUserInfoKey {
-    static let managedObjectContext = CodingUserInfoKey(rawValue: "managedObjectContext")!
+/**
+ Attempt to fetch an image from the web, and will retry with exponential backoff if initial fetch failed.
+
+ The function will attempt to fetch the image from the web, and save it to disk.
+
+ - Parameters:
+    - url: The url to fetch the image
+    - fileURL: The internal URL path to save the downloaded image to
+
+ - Returns: An image of the user.
+ */
+private func fetchImageWeb(url: String, fileURL: URL) async throws -> UIImage {
+    do {
+        return try await downloadImage(url: url, fileURL: fileURL)
+    } catch {
+        return try await Task.exponentialRetry(operation: {
+            return try await downloadImage(url: url, fileURL: fileURL)
+        }).value
+    }
+}
+
+/**
+ Attempt to download an image from the web and save to disk.
+
+ The function will attempt to fetch the image from the web, and save it to disk.
+
+ - Parameters:
+    - url: The url to fetch the image
+    - fileURL: The internal URL path to save the downloaded image to
+
+ - Returns: An image of the user.
+ */
+private func downloadImage(url: String, fileURL: URL) async throws -> UIImage {
+    let data = try await NetworkServices.shared.fetchImage(url: url)
+
+    if let image = UIImage(data: data) {
+        try await saveToDisk(url: fileURL, data: data)
+
+        return image
+    } else {
+        throw NetworkError.failedToDownloadFile(url: url)
+    }
+}
+
+/**
+ Save data to disk with the given URL.
+
+ - Parameters:
+    - url: The internal URL path to save the downloaded image to
+    - data: raw data
+ */
+private func saveToDisk(url: URL, data: Data) async throws {
+    if FileManager.default.fileExists(atPath: url.path) {
+        try FileManager.default.removeItem(atPath: url.path)
+    }
+
+    try data.write(to: url)
 }

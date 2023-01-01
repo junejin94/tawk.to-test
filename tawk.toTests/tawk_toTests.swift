@@ -11,8 +11,9 @@ import CoreData
 @testable import tawk_to
 
 final class tawk_toTests: XCTestCase {
+    let lastID: Int64 = 0
+    /// The path for the mock data to load from
     let path = Bundle.main.path(forResource: "dummy", ofType: "json")
-    let context = CoreDataStore.shared.persistentContainer.viewContext
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
@@ -22,73 +23,41 @@ final class tawk_toTests: XCTestCase {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
-    func testOperations() throws {
-        let testString = "Test"
-        let testRowName = "login"
+    /// Simple CRU unit tests, doesn't cover everything.
+    func testOperations() async throws {
+        /// Attempt to load mock data from the disk
+        let data = try loadMock()
 
-        let decoder = JSONDecoder()
-        decoder.userInfo[CodingUserInfoKey.managedObjectContext] = context
+        /// Attempt to save user lists to database, the returned list is omitted because we don't need it
+        _ = try await Database.sharedTest.saveUsers(data: data)
 
-        var users = [Users]()
-
-        // Attempt to decode an actual JSON response and map it to the Model
-        do {
-            let url = URL(fileURLWithPath: path!)
-            let json = try Data(contentsOf: url)
-            _ = try decoder.decode([Users].self, from: json)
-        } catch {
-            fatalError("Unable to decode JSON to User Model")
-        }
-
-        // Attempt to save the data into a database
-        do {
-            try context.save()
-        } catch {
-            fatalError("Unable to save to database")
-        }
-
-        // Attempt to fetch the data from database
-        do {
-            let sort = NSSortDescriptor(key: "id", ascending: true)
-            let request = NSFetchRequest<Users>(entityName: "Users")
-            request.sortDescriptors = [sort]
-
-            users = try context.fetch(request)
-        } catch {
-            fatalError("Unable to fetch the data")
-        }
-
-        // Ensure that the users count is correct
+        /// Attempt to load the previously saved users from the database
+        let users = try await Database.sharedTest.getUsersSince(id: lastID)
+        /// Assert that there's a total of 30 users
         XCTAssertEqual(users.count, 30)
 
-        // Attempt to unwrap optional, if fail means that either fail to unwrap optional or missing data
-        guard let firstUser = users.first else {
-            fatalError("Unable to get the user")
+        /// Attempt to get the first user in the users list
+        guard let first = users.first else {
+            fatalError("Unable to get first of user list")
         }
 
-        // Attempt to update a model and save it to the database
-        do {
-            firstUser.setValue(testString, forKey: testRowName)
+        /// Attempt to update the "seen" status of the user
+        let success = try await Database.sharedTest.updateSeen(id: first.id)
+        /// Assert that it's successfully saved (true)
+        XCTAssertTrue(success)
 
-            try context.save()
-        } catch {
-            fatalError("Unable to update the data")
-        }
+        /// Attempt to get the "seen" status of the user
+        let status = try await Database.sharedTest.getSeenFor(id: first.id)
+        /// Assert that the value is the same as in the database
+        XCTAssertEqual(success, status)
+    }
 
-        // Ensure that the data is update accordingly with the test string
-        do {
-            let request = NSFetchRequest<Users>(entityName: "Users")
-            request.predicate = NSPredicate(format: "id == %d", firstUser.id)
-            request.fetchLimit = 1
+    /// Attempts to load mock data from disk.
+    func loadMock() throws -> Data {
+        let url = URL(fileURLWithPath: path!)
+        let json = try Data(contentsOf: url)
 
-            let result = try context.fetch(request)
-
-            if let detail = result.first {
-                XCTAssertEqual(detail.login, testString)
-            }
-        } catch {
-            fatalError("Unable to fetch the data")
-        }
+        return json
     }
 
     func testPerformanceExample() throws {
