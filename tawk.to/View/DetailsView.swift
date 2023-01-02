@@ -9,70 +9,55 @@ import SwiftUI
 import Combine
 import Foundation
 
+enum LoadingState {
+    case loading
+    case success
+}
+
 struct DetailsView: View, KeyboardReadable {
-    /// To dismiss a view in iOS 14 and below, we must use the PresentationMode property, "dismiss()" is only available in iOS 15+
-    @Environment(\.presentationMode) var presentationMode: Binding<PresentationMode>
     @EnvironmentObject var viewModel: DetailsViewModel
 
-    /// Arbitrary ID for scrollview to scroll when TextEditor is on focus, @FocusState is only available on iOS 15+
+    /// Arbitrary ID to scroll to when TextEditor is on focus, @FocusState is only available on iOS 15+
     private var scrollID = 1
 
     @State private var notes: String = ""
     @State private var isLoading: Bool = true
-    @State private var showAlert: Bool = false
-    @State private var showError: Bool = false
+    @State private var showToast: Bool = false
     @State private var savedSuccessful: Bool = true
+    @State private var state: LoadingState = .loading
 
     var imageView: some View {
         VStack {
-            if isLoading {
-                Rectangle()
-                    .fill(Color(CustomColor.Skeleton.background))
-                    .shimmer(isPresented: $isLoading)
-            } else {
-                Image(uiImage: viewModel.image)
-                    .resizable()
-            }
+            Image(uiImage: viewModel.image)
+                .resizable()
         }
+        .shimmer(isPresented: $isLoading)
         .frame(width: UIScreen.main.bounds.size.width - 16, height: UIScreen.main.bounds.size.width - 16)
-    }
-
-    var textPlaceholderView: some View {
-        Rectangle()
-            .fill(Color(CustomColor.Skeleton.background))
-            .shimmer(isPresented: $isLoading)
-            .frame(height: 10)
     }
 
     var followerView: some View {
         HStack {
-            if isLoading {
-                textPlaceholderView
-                textPlaceholderView
-            } else {
-                Text("Followers: \(viewModel.followers)")
-                    .frame(maxWidth: .infinity)
-                    .font(.system(size: 12))
-                Text("Following: \(viewModel.following)")
-                    .frame(maxWidth: .infinity)
-                    .font(.system(size: 12))
-            }
+            Text("Followers: \(viewModel.followers)")
+                .frame(maxWidth: .infinity)
+                .font(.system(size: 12))
+            Text("Following: \(viewModel.following)")
+                .frame(maxWidth: .infinity)
+                .font(.system(size: 12))
         }
         .id(scrollID)
+        .shimmer(isPresented: $isLoading)
         .frame(width: UIScreen.main.bounds.size.width - 16)
     }
 
     var detailsView: some View {
         VStack {
-            if isLoading {
-                VStack {
-                    /// There's in total of 8 displayable elements, so we need 8 placeholders
-                    ForEach(0..<8) { _ in
-                        textPlaceholderView
+            Group {
+                if isLoading {
+                    /// Empty text as placeholder, the reason we are using 9 is because there's 9 possible field to display
+                    ForEach(0..<9) { _ in
+                        Text("")
                     }
-                }
-            } else {
-                Group {
+                } else {
                     if !viewModel.name.isEmpty {
                         Text("Name: \(viewModel.name)")
                     }
@@ -101,10 +86,11 @@ struct DetailsView: View, KeyboardReadable {
                         Text("Repositories: \(viewModel.public_repos)")
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .font(.system(size: 14))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .font(.system(size: 14))
         }
+        .shimmer(isPresented: $isLoading)
         .frame(width: UIScreen.main.bounds.size.width - 32)
         .padding(.all, 8)
         .border(Color.primary)
@@ -114,24 +100,11 @@ struct DetailsView: View, KeyboardReadable {
         VStack(alignment: .leading, spacing: 4) {
             Text("Notes:")
 
-            if isLoading {
-                ZStack {
-                    Rectangle()
-                        .fill(Color(UIColor.systemBackground))
-                        .border(Color.primary)
-
-                    Rectangle()
-                        .fill(Color(CustomColor.Skeleton.background))
-                        .shimmer(isPresented: $isLoading)
-                        .frame(width: UIScreen.main.bounds.size.width - 24, height: 48)
-                }
-            } else {
-                TextEditor(text: $notes)
-                    .border(Color.primary)
-                    .font(.system(size: 14))
-            }
+            TextEditor(text: $notes)
+                .shimmer(isPresented: $isLoading)
+                .border(Color.primary)
+                .font(.system(size: 14))
         }
-        .disabled(isLoading)
         .frame(width: UIScreen.main.bounds.size.width - 16, height: 90)
     }
 
@@ -142,12 +115,12 @@ struct DetailsView: View, KeyboardReadable {
 
                 if savedSuccessful { viewModel.notes = notes }
 
-                showAlert = true
+                showToast = true
                 UIApplication.shared.windows.first(where:\.isKeyWindow)?.endEditing(true)
 
                 try? await Task.sleep(seconds: 2)
 
-                showAlert = false
+                showToast = false
             }
         } label: {
             Text("Save")
@@ -160,57 +133,46 @@ struct DetailsView: View, KeyboardReadable {
                         .shadow(color: .secondary, radius: 5, x: 3, y: 3)
                 )
         }
-        .disabled(isLoading || showAlert)
+        .disabled(showToast)
+    }
+
+    var mainView: some View {
+        ScrollViewReader { reader in
+            ScrollView(showsIndicators: false) {
+                VStack {
+                    Spacer(minLength: 8)
+
+                    imageView
+                    followerView
+                    detailsView
+                    notesView
+                    saveButtonView
+
+                    Spacer(minLength: 8)
+                }
+            }
+            .onReceive(keyboardPublisher) { visible in
+                withAnimation { reader.scrollTo(scrollID, anchor: .top) }
+            }
+        }
     }
 
     var body: some View {
-        ZStack {
-            ScrollViewReader { reader in
-                ScrollView(showsIndicators: false) {
-                    VStack {
-                        Spacer(minLength: 8)
+        mainView
+            .onLoad { Task { await viewModel.loadData() } }
+            .navigationBarTitle(viewModel.navigationBarTitle)
+            .onTapGesture { UIApplication.shared.windows.first(where:\.isKeyWindow)?.endEditing(true) }
+            .toast(message: savedSuccessful ? "Saved successful" : "Saved failed" , isShowing: $showToast, config: Toast.Config.init())
+            .onReceive(MonitorConnection.shared.$hasConnection.dropFirst(), perform: { hasConnection in
+                if hasConnection { Task { await viewModel.retryIfNecessary() } }
+            })
+            .onReceive(viewModel.didSetDetail) { _ in
+                state = .success
+                isLoading = false
+                notes = viewModel.notes
 
-                        imageView
-                        followerView
-                        detailsView
-                        notesView
-                        saveButtonView
-
-                        Spacer(minLength: 8)
-                    }
-                }
-                .disabled(isLoading)
-                .onReceive(keyboardPublisher) { visible in
-                    withAnimation { reader.scrollTo(scrollID, anchor: .top) }
-                }
+                Task { await viewModel.updateSeen() }
             }
-        }
-        .navigationBarTitle(isLoading ? "" : viewModel.navigationBarTitle)
-        .alert(isPresented: $showError, content: {
-            Alert(
-                title: Text("Error"),
-                message: Text("Failed to load the user's detail!"),
-                dismissButton: .default(Text("Back"), action: {
-                    presentationMode.wrappedValue.dismiss()
-                })
-            )
-        })
-        .toast(message: savedSuccessful ? "Saved successful" : "Saved failed" , isShowing: $showAlert, config: Toast.Config.init())
-        .onLoad(perform: {
-            isLoading = viewModel.detail == nil
-
-            Task.detached { await viewModel.loadData() }
-        })
-        .onTapGesture { UIApplication.shared.windows.first(where:\.isKeyWindow)?.endEditing(true) }
-        .onReceive(viewModel.didSetDetail) { _ in
-            isLoading = false
-            notes = viewModel.notes
-
-            Task { await viewModel.updateSeen() }
-        }
-        .onReceive(MonitorConnection.shared.$hasConnection.dropFirst(), perform: { hasConnection in
-            if hasConnection { Task { await viewModel.retryIfNecessary() } }
-        })
     }
 }
 

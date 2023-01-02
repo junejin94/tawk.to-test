@@ -159,6 +159,7 @@ struct ShimmeringView<Content: View>: View {
     var body: some View {
         ZStack {
             content()
+                .background(isPresented ? Color(CustomColor.Skeleton.background) : .clear)
 
             if isPresented {
                 LinearGradient(
