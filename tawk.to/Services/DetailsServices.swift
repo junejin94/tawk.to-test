@@ -7,11 +7,11 @@
 
 import Foundation
 
-/// Singleton for user services
-actor UserServices {
+/// Singleton for details services
+actor DetailsServices {
     private var retryTask: Task<Detail?, Error>?
 
-    static let shared = UserServices()
+    static let shared = DetailsServices()
 
     private init() {}
 

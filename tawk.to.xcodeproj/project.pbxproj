@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		582CF6F3296045C60089652B /* DetailsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 582CF6F2296045C60089652B /* DetailsViewModel.swift */; };
 		587CF901296025E8009B9C1A /* ListServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587CF900296025E8009B9C1A /* ListServices.swift */; };
-		587CF9042960351E009B9C1A /* UserServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587CF9032960351E009B9C1A /* UserServices.swift */; };
+		587CF9042960351E009B9C1A /* DetailsServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587CF9032960351E009B9C1A /* DetailsServices.swift */; };
 		588040F8295D911B00313C5D /* UserModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588040F7295D911B00313C5D /* UserModel.swift */; };
 		588040FA295D915600313C5D /* DetailModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588040F9295D915600313C5D /* DetailModel.swift */; };
 		58805886295FF10500352ADB /* Errors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58805885295FF10500352ADB /* Errors.swift */; };
@@ -56,7 +56,7 @@
 /* Begin PBXFileReference section */
 		582CF6F2296045C60089652B /* DetailsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsViewModel.swift; sourceTree = "<group>"; };
 		587CF900296025E8009B9C1A /* ListServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListServices.swift; sourceTree = "<group>"; };
-		587CF9032960351E009B9C1A /* UserServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserServices.swift; sourceTree = "<group>"; };
+		587CF9032960351E009B9C1A /* DetailsServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsServices.swift; sourceTree = "<group>"; };
 		588040F7295D911B00313C5D /* UserModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserModel.swift; sourceTree = "<group>"; };
 		588040F9295D915600313C5D /* DetailModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailModel.swift; sourceTree = "<group>"; };
 		58805885295FF10500352ADB /* Errors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Errors.swift; sourceTree = "<group>"; };
@@ -116,7 +116,7 @@
 			isa = PBXGroup;
 			children = (
 				587CF900296025E8009B9C1A /* ListServices.swift */,
-				587CF9032960351E009B9C1A /* UserServices.swift */,
+				587CF9032960351E009B9C1A /* DetailsServices.swift */,
 				588261532943626F0028B8BF /* NetworkServices.swift */,
 			);
 			path = Services;
@@ -373,7 +373,7 @@
 				5882615C294363580028B8BF /* Database.swift in Sources */,
 				582CF6F3296045C60089652B /* DetailsViewModel.swift in Sources */,
 				5882615A294363110028B8BF /* Helpers.swift in Sources */,
-				587CF9042960351E009B9C1A /* UserServices.swift in Sources */,
+				587CF9042960351E009B9C1A /* DetailsServices.swift in Sources */,
 				58826119294339890028B8BF /* tawk_to.xcdatamodeld in Sources */,
 				588040FA295D915600313C5D /* DetailModel.swift in Sources */,
 				5882610F294339890028B8BF /* AppDelegate.swift in Sources */,

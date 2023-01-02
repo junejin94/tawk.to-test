@@ -222,6 +222,6 @@ struct DetailsView_Previews: PreviewProvider {
         user.login = "mojombo"
         user.notes = "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
 
-        return DetailsView().environmentObject(user)
+        return DetailsView().environmentObject(DetailsViewModel(user: user))
     }
 }

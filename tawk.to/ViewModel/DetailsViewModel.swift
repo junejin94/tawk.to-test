@@ -25,7 +25,7 @@ actor DetailsViewModel: ObservableObject {
     @MainActor var location: String { return user.detail?.location ?? "" }
     @MainActor var company: String { return user.detail?.company ?? "" }
     @MainActor var detail: Detail? { return user.detail }
-    @MainActor var image: UIImage { return user.image }
+    @MainActor var image: UIImage { return user.detail?.image ?? UIImage() }
     @MainActor var followers: String { return String(user.detail?.followers ?? 0) }
     @MainActor var following: String { return String(user.detail?.following ?? 0) }
     @MainActor var public_repos: String { return String(user.detail?.public_repos ?? 0) }
@@ -51,7 +51,7 @@ actor DetailsViewModel: ObservableObject {
      */
     func loadData() async {
         do {
-            let model = try await UserServices.shared.loadLocal(id: user.id)
+            let model = try await DetailsServices.shared.loadLocal(id: user.id)
             await setDetail(model: model)
             await loadWeb(update: true)
         } catch let error {
@@ -62,13 +62,13 @@ actor DetailsViewModel: ObservableObject {
 
     /// Check whether to retry fetching user's detail and immediately retry if necessary.
     @MainActor func retryIfNecessary() async {
-        if await UserServices.shared.shouldRetry() { await loadWeb(update: true) }
+        if await DetailsServices.shared.shouldRetry() { await loadWeb(update: true) }
     }
 
     /// Updates the "seen" status of a single user, once complete, it will broadcast to subscribers.
     func updateSeen() async {
         do {
-            await user.seen = try await UserServices.shared.updateSeen(id: user.id)
+            await user.seen = try await DetailsServices.shared.updateSeen(id: user.id)
             await MainActor.run { didSetSeen.send() }
         } catch let error {
             print(error.localizedDescription)
@@ -82,7 +82,7 @@ actor DetailsViewModel: ObservableObject {
      */
     func saveNotes(notes: String) async -> Bool {
         do {
-            let success = try await UserServices.shared.saveNotes(id: user.id, notes: notes)
+            let success = try await DetailsServices.shared.saveNotes(id: user.id, notes: notes)
             await MainActor.run { didSetNotes.send(notes) }
 
             return success
@@ -100,7 +100,7 @@ actor DetailsViewModel: ObservableObject {
      */
     private func loadWeb(update: Bool) async {
         do {
-            let model = try await UserServices.shared.loadWeb(login: user.login, update: update)
+            let model = try await DetailsServices.shared.loadWeb(login: user.login, update: update)
             await setDetail(model: model)
         } catch let error {
             print(error.localizedDescription)
